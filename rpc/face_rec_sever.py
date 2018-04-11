@@ -32,11 +32,12 @@ class FaceRec(FaceRecognitionServicer):
         face_path = FaceRec.get_face_path(face_id)
         if face_path is None:
             return None
-        img, locs = predict_face(face_path, knn_clf, distance_threshold=0.6, method=method)
+        img, locs, info = predict_face(face_path, knn_clf, distance_threshold=0.6, method=method)
         img = draw_labels_and_save(img, locs, is_save=False)
         img_str = BytesIO()
         img.save(img_str, 'png')
-        rpc_img = RpcImage(id=0, stream=base64.b64encode(img_str.getvalue()))
+        print(info)
+        rpc_img = RpcImage(id=0, name=json.dumps(info), stream=base64.b64encode(img_str.getvalue()))
         return rpc_img
 
     @staticmethod

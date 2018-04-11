@@ -30,6 +30,7 @@ class FaceDetect(object):
         if 'bg' not in class_mapping:
             class_mapping['bg'] = len(class_mapping)
         self.class_mapping = {v: k for k, v in class_mapping.items()}
+        print(self.model_path)
 
         # model
         input_shape_img = (None, None, 3)
@@ -49,7 +50,6 @@ class FaceDetect(object):
         # load weight
         if self.model_path is None:
             self.model_path = self.cfg.model_path
-        print('\n\n', self.cfg)
         self.model_rpn.load_weights(self.model_path, by_name=True)
         self.model_classifier.load_weights(self.model_path, by_name=True)
         # compile
@@ -72,7 +72,7 @@ class FaceDetect(object):
         else:
             raise Exception('img format error')
 
-        st = time.time()
+        t1_record = time.time()
 
         X, ratio = self.format_img(img)
 
@@ -81,6 +81,8 @@ class FaceDetect(object):
         # get the feature maps and output from the RPN
         with self.graph.as_default():
             [Y1, Y2, F] = self.model_rpn.predict(X)
+        t2_record = time.time()
+        rpn_elapsed_time = t2_record - t1_record
 
         R = roi_helpers.rpn_to_roi(Y1, Y2, self.cfg, K.image_dim_ordering(), overlap_thresh=0.7)
 
@@ -91,6 +93,8 @@ class FaceDetect(object):
         # apply the spatial pyramid pooling to the proposed regions
         bboxes = {}
         probs = {}
+        cls_elapsed_time = 0
+        cls_predict_times = 0
         # Number of ROIs per iteration
         for jk in range(R.shape[0] // self.cfg.num_rois + 1):
             ROIs = np.expand_dims(R[self.cfg.num_rois * jk:self.cfg.num_rois * (jk + 1), :], axis=0)
@@ -106,8 +110,11 @@ class FaceDetect(object):
                 ROIs_padded[0, curr_shape[1]:, :] = ROIs[0, 0, :]
                 ROIs = ROIs_padded
 
+            t_record = time.time()
             with self.graph.as_default():
                 [P_cls, P_regr] = self.model_classifier.predict([F, ROIs])
+            cls_predict_times += 1
+            cls_elapsed_time += time.time() - t_record
 
             for ii in range(P_cls.shape[1]):
                 # filter
@@ -138,6 +145,7 @@ class FaceDetect(object):
 
         locations = []
 
+        loc_probs = []
         for key in bboxes:
             bbox = np.array(bboxes[key])
 
@@ -149,11 +157,18 @@ class FaceDetect(object):
             for jk in range(new_boxes.shape[0]):
                 x1, y1, x2, y2 = new_boxes[jk, :]
                 locations.append(self.get_real_coordinates(ratio, x1, y1, x2, y2))
+                try:
+                    loc_probs.append(float(new_probs[jk]))
+                except: pass
 
         len_all_locations = len(bboxes['face']) if 'face' in bboxes else 0
         logging.info('Detect the image, elapsed time = {}, bboxes: {}, '
-                     'locations： {}'.format(time.time() - st, len_all_locations, len(locations)))
-        return locations
+                     'locations： {}'.format(time.time() - t1_record, len_all_locations, len(locations)))
+        res_info = dict(loc_probs=loc_probs,
+                        rpn_elapsed_time=rpn_elapsed_time,
+                        cls_elapsed_all_time=cls_elapsed_time,
+                        cls_predict_times=cls_predict_times)
+        return locations, res_info
 
     def format_img_size(self, img):
         """ formats the image size based on config """

@@ -11,9 +11,7 @@ from models.api import face_detect
 from sklearn import neighbors
 
 from config import ALLOWED_EXTENSIONS
-from config import LFW_PATH, LFW_TEST_PATH, LFW_TRAIN_PATH
 from core.utils.face_recognition_cli import image_files_in_folder
-from web.model import Face
 
 
 def train(train_dir, model_save_path=None, n_neighbors=None, knn_algo='ball_tree', verbose=False):
@@ -107,11 +105,14 @@ def predict_face(img_path, knn_clf=None, model_path=None, distance_threshold=0.6
     else:
         img = cv2.imread(img_path)
     # face_locations = face_recognition.face_locations(img)
-    face_locations = face_detect(img, method=method, format='css')
+    res_info = face_detect(img, method=method, format='css')
+    face_locations = res_info.get('locs')
 
+    if method == 'face-net':
+        img = img[:, :, (2, 1, 0)]     # BGR -> RGB
     # If no faces are found in the image, return an empty result.
     if len(face_locations) == 0:
-        return img, []
+        return img, [], res_info
 
     # Find encodings for faces in the test image
     faces_encodings = face_recognition.face_encodings(img, known_face_locations=face_locations)
@@ -128,7 +129,7 @@ def predict_face(img_path, knn_clf=None, model_path=None, distance_threshold=0.6
         else:
             data.append(('unkown', loc))
 
-    return img, data
+    return img, data, res_info
 
 
 def draw_labels_and_save(img, predictions, save_path=None, is_save=True):
@@ -165,105 +166,7 @@ def draw_labels_and_save(img, predictions, save_path=None, is_save=True):
     return img
 
 
-def splilt_flw(train_dir=LFW_PATH):
-    for class_dir in os.listdir(train_dir):
-        dir_path = os.path.join(train_dir, class_dir)
-        if not os.path.isdir(dir_path):
-            continue
-
-        image_files = image_files_in_folder(dir_path)
-        if len(image_files) < 10:
-            continue
-        for i, img_path in enumerate(image_files):
-            train_path = os.path.join(LFW_TRAIN_PATH, class_dir)
-            test_path = os.path.join(LFW_TEST_PATH, class_dir)
-            if not os.path.exists(train_path):
-                os.mkdir(train_path)
-            if not os.path.exists(test_path):
-                os.mkdir(test_path)
-
-            # 前5个作为训练集体, 剩余的为测试集体
-            if i < 5:
-                is_train = True
-                save_path = os.path.join(train_path, '{}-{}.jpg'.format(class_dir, i))
-
-            else:
-                is_train = False
-                save_path = os.path.join(test_path, '{}-{}.jpg'.format(class_dir, i - 5))
-            os.system('cp {} {}'.format(img_path, save_path))
-            db_img = Face(name=class_dir, path=save_path, is_train=is_train)
-            db_img.save()
-
-
-def get_annotation():
-    """获取faster rnn annotation"""
-
-    fp = open('/data/algo/data/frnn_annotations.txt', 'w', encoding='utf8')
-    f_log = open('/data/algo/data/frnn_annotations_log.txt', 'w', encoding='utf8')
-    count = 0
-    cache = []
-    for class_dir in os.listdir(LFW_PATH):
-        dir_path = os.path.join(LFW_PATH, class_dir)
-        if not os.path.isdir(dir_path):
-            continue
-
-        image_files = image_files_in_folder(dir_path)
-        for img_path in image_files:
-            image = face_recognition.load_image_file(img_path)
-            face_bounding_boxes = face_recognition.face_locations(image)
-            for bbox in face_bounding_boxes:
-                # Add face encoding for current image to the training set
-                # fp.write('{}, {}, {}, {}, {}, face\n'.format(img_path, bbox[3], bbox[1], bbox[0], bbox[2]))
-                cache.append('{}, {}, {}, {}, {}, face\n'.format(img_path, bbox[3], bbox[1], bbox[0], bbox[2]))
-            count += 1
-            if len(face_bounding_boxes) == 0:
-                f_log.write('%s\n' % img_path)
-        if len(cache) > 1000:
-            fp.writelines(cache)
-            cache.clear()
-    fp.close()
-    f_log.close()
-
-
-def save_face(image_dir, save_dir):
-    count = 0
-    for f_dir in os.listdir(image_dir):
-        for f_name in os.listdir(os.path.join(image_dir, f_dir)):
-            path = os.path.join(image_dir, f_dir, f_name)
-            img = cv2.imread(path)
-            face_locations = face_recognition.face_locations(img, model='cnn')
-
-            for top, right, bottom, left in face_locations:
-                # Draw a box around the face using the Pillow module
-                face = img[left:right, top:bottom]
-                save_path = os.path.join(save_dir, 'img-{}.jpg'.format(count))
-                cols, lens, channels = face.shape
-                face = cv2.resize(face, (64, int(64 / cols * cols)))
-                cv2.imwrite(save_path, face)
-                count += 1
-
-
 if __name__ == "__main__":
-    print("Training KNN classifier...")
-    classifier = train("knn_examples/train", model_save_path="trained_knn_model.clf", n_neighbors=2)
-    print("Training complete!")
-
-    # STEP 2: Using the trained classifier, make predictions for unknown images
-    for image_file in os.listdir("knn_examples/test"):
-        full_file_path = os.path.join("knn_examples/test", image_file)
-
-        print("Looking for faces in {}".format(image_file))
-
-        # Find all people in the image using a trained classifier model
-        # Note: You can pass in either a classifier file name or a classifier model instance
-        predictions = predict_face(full_file_path, model_path="trained_knn_model.clf")
-
-        # Print results on the console
-        for name, (top, right, bottom, left) in predictions:
-            print("- Found {} at ({}, {})".format(name, left, top))
-
-        # Display results overlaid on an image
-        draw_labels_and_save(os.path.join("knn_examples/test", image_file), predictions)
+    pass
 
 
-print(predict_face)

@@ -14,11 +14,13 @@ class Face(db.Model):
     path = Column(String(1024))
     is_train = Column(SmallInteger)
     encoding = Column(String(2048))
+    dataset = Column(String(256))
 
-    def __init__(self, name, path, is_train=False):
+    def __init__(self, name, path, dataset,is_train=False):
         self.name = name
         self.path = path
         self.is_train = is_train
+        self.dataset = dataset
         self.data = None
 
     def save(self):
