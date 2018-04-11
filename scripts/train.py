@@ -6,7 +6,7 @@ import time
 import cv2
 import face_recognition
 import datetime
-from config import MODEL_PATH, LFW_TRAIN_PATH
+from config import LFW_MODEL_PATH, VGG_MODEL_PATH, LFW_TRAIN_PATH
 from core.face_rec import train, predict_face, draw_labels_and_save
 from web.model import Face
 from config import LFW_PATH, LFW_TEST_PATH, LFW_TRAIN_PATH
@@ -14,13 +14,17 @@ from config import VGG_PATH, VGG_TEST_PATH, VGG_TRAIN_PATH
 from core.utils.face_recognition_cli import image_files_in_folder
 
 
-def train_model():
+def train_model(dataset='lfw'):
     print("Training KNN classifier...")
-    if os.path.exists(MODEL_PATH):
+    if dataset == 'lfw':
+        model_path = LFW_MODEL_PATH
+    else:
+        model_path = VGG_MODEL_PATH
+    if os.path.exists(model_path):
         conform = input('knn classifier already exists. If want to retrain and overwrite it, please press Y: ')
         if conform != 'Y':
             return
-    train(LFW_TRAIN_PATH, model_save_path=MODEL_PATH, n_neighbors=3)
+    train(LFW_TRAIN_PATH, model_save_path=model_path, n_neighbors=3)
     print("Training complete!")
 
 
@@ -47,11 +51,15 @@ def splilt_flw(dataset):
     else:
         raise Exception()
 
+    count = 0
     for class_dir in os.listdir(img_dir):
         dir_path = os.path.join(img_dir, class_dir)
         if not os.path.isdir(dir_path):
             continue
 
+        if count > 1000:
+            break
+        count += 1
         image_files = image_files_in_folder(dir_path)
         if len(image_files) < 10:
             continue
@@ -68,9 +76,11 @@ def splilt_flw(dataset):
                 is_train = True
                 save_path = os.path.join(train_path, '{}-{}.jpg'.format(class_dir, i))
 
-            elif i < 15:
+            elif i < 10:
                 is_train = False
                 save_path = os.path.join(test_path, '{}-{}.jpg'.format(class_dir, i - 5))
+            else:
+                continue
             os.system('cp {} {}'.format(img_path, save_path))
             db_img = Face(name=class_dir, path=save_path, is_train=is_train, dataset=dataset)
             db_img.save()
