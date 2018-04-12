@@ -128,6 +128,7 @@ def predict_face(img_path, knn_clf=None, model_path=None, distance_threshold=0.6
             data.append((pred, loc))
         else:
             data.append(('unkown', loc))
+    res_info['recognition'] = data
 
     return img, data, res_info
 

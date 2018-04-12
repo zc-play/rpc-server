@@ -13,18 +13,18 @@ def resize():
             if img is None:
                 continue
             h, w, _ = img.shape
+            rh, rw = h, w
             if h > w > 300:
                 rh, rw = int(h // (w/300)), 300
-                img = cv2.resize(img, (rh, rw))
+                img = cv2.resize(img, (rw, rh))
             elif h <= w and h > 300:
                 rh, rw = 300, int(w // (h/300))
-                img = cv2.resize(img, (rh, rw))
-            else:
-                continue
-            path = os.path.join(vgg_resize_path, f_dir, f_name)
+                img = cv2.resize(img, (rw, rh))
+            path = os.path.join(vgg_resize_path, f_dir)
             os.makedirs(path, exist_ok=True)
+            f_path = os.path.join(path, f_name)
             print('{}, convert: ({}, {}) to ({}, {})'.format(path, h, w, rh, rw))
-            cv2.imwrite(path, img)
+            cv2.imwrite(f_path, img)
 
 
 resize()

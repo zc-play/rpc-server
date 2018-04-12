@@ -18,19 +18,26 @@ def train_model(dataset='lfw'):
     print("Training KNN classifier...")
     if dataset == 'lfw':
         model_path = LFW_MODEL_PATH
+        train_path = LFW_TRAIN_PATH
     else:
         model_path = VGG_MODEL_PATH
+        train_path = VGG_TRAIN_PATH
     if os.path.exists(model_path):
         conform = input('knn classifier already exists. If want to retrain and overwrite it, please press Y: ')
         if conform != 'Y':
             return
-    train(LFW_TRAIN_PATH, model_save_path=model_path, n_neighbors=3)
+    train(train_path, model_save_path=model_path, n_neighbors=3)
     print("Training complete!")
 
 
-def predict_img(img_path):
-    with open(MODEL_PATH, 'rb') as f:
+def predict_img(img_path, dataset='lfw'):
+    if dataset == 'lfw':
+        model_path = LFW_MODEL_PATH
+    else:
+        model_path = VGG_MODEL_PATH
+    with open(model_path, 'rb') as f:
         knn_clf = pickle.load(f)
+
     t_record1 = time.time()
     predictions = predict_face(img_path, knn_clf=knn_clf, distance_threshold=0.4)
     # Print results on the console
